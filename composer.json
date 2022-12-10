@@ -1,0 +1,44 @@
+{
+    "name": "jobsys/survey",
+    "description": "A survey bundler",
+    "keywords": [
+        "jobsys",
+        "survey"
+    ],
+    "homepage": "https://github.com/jobsys/survey",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "sinceow",
+            "email": "sinceow@163.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.0",
+        "doctrine/migrations": "^3.5",
+        "phpoffice/phpword": "^1.0.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Jobsys\\Survey\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Jobsys\\Survey\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
