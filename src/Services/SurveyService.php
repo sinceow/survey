@@ -5,7 +5,6 @@ namespace Jobsys\Survey\Services;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
-use Doctrine\DBAL\Query\QueryBuilder;
 use Jobsys\Survey\Survey;
 use Jobsys\Survey\SurveyQuestion;
 use Jobsys\Survey\Utils\Db;
@@ -1063,6 +1062,55 @@ class SurveyService
         }
 
         return [compact('headers', 'items'), null];
+    }
+
+
+    //根据问卷答案导入问卷和数据
+    public function importSurvey($file_path, $survey, $question_rules, $option_rules, $answer_rules)
+    {
+
+        if (!file_exists($file_path)) {
+            return [null, '文件不存在'];
+        }
+
+        try {
+            $input_file_type = \PhpOffice\PhpSpreadsheet\IOFactory::identify($file_path, [
+                \PhpOffice\PhpSpreadsheet\IOFactory::READER_XLS,
+                \PhpOffice\PhpSpreadsheet\IOFactory::READER_XLSX,
+            ]);
+        } catch (\PhpOffice\PhpSpreadsheet\Reader\Exception $e) {
+            return [null, '文件不是有效的Excel文件，只支持xls和xlsx格式'];
+        }
+
+
+        $question_start_index = $question_rules['question_start_index'] ?? null; //问题起始列，没有默认为第一列
+        $question_end_index = $question_rules['question_end_index'] ?? null; //问题结束列，没有默认到最后一列
+        $question_order_regex = $question_rules['question_order_regex'] ?? null; //问题序号正则
+        $question_title_regex = $question_rules['question_title_regex'] ?? null; //问题题目正则
+
+        $option_separator = $option_rules['option_separator'] ?? null; //选项分隔符
+        $option_order_regex = $option_rules['option_order_regex'] ?? null; //选项序号正则
+        $option_title_regex = $option_rules['option_title_regex'] ?? null; //选项题目正则
+        $option_fillable_start_regex = $option_rules['option_fillable_start_regex'] ?? null; //选项填空题开始正则
+        $option_fillable_end_regex = $option_rules['option_fillable_end_regex'] ?? null; //选项填空题结束正则
+
+
+        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader($input_file_type);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file_path);
+
+        $worksheet = $spreadsheet->getActiveSheet();
+
+        //保存问卷
+        list($survey, $error) = $this->saveSurvey($survey);
+
+        if ($error) {
+            return [null, $error];
+        }
+
+        //根据规则生成题目
+        //TODO
+
     }
 
     /**
