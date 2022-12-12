@@ -16,8 +16,9 @@ composer require jobsys/survey
 
 ## Usage
 
-```php
-// Usage description here
+```bash
+# Run the migrations
+./vendor/bin/doctrine-migrations migrate
 ```
 
 ### Testing
