@@ -16,3 +16,4 @@ vendor
 composer.lock
 .DS_Store
 /tests/Services/files/
+/config.php

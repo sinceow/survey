@@ -8,6 +8,7 @@ use Doctrine\DBAL\ParameterType;
 use Jobsys\Survey\Survey;
 use Jobsys\Survey\SurveyQuestion;
 use Jobsys\Survey\Utils\Db;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Settings;
@@ -1053,7 +1054,7 @@ class SurveyService
             $question_key = 'Q_' . $answer['survey_question_id'];
 
             if (!isset($item[$question_key])) {
-                $item[$question_key] = $option_map[$answer['survey_option_id']];
+                $item[$question_key] = $option_map[$answer['survey_option_id']] ?? $answer['answer'];
             } else {
                 $item[$question_key] .= '|';
             }
@@ -1066,7 +1067,7 @@ class SurveyService
 
 
     //根据问卷答案导入问卷和数据
-    public function importSurvey($file_path, $survey, $question_rules, $option_rules, $answer_rules)
+    public function importSurvey($file_path, $survey, $question_rules, $option_rules, $answer_rules, $additional = [])
     {
 
         if (!file_exists($file_path)) {
@@ -1101,16 +1102,270 @@ class SurveyService
 
         $worksheet = $spreadsheet->getActiveSheet();
 
-        //保存问卷
-        list($survey, $error) = $this->saveSurvey($survey);
 
-        if ($error) {
-            return [null, $error];
+        //问题： col => question
+        $question_map = [];
+
+        //答案: 字段 => col
+        $answer_map = [];
+
+        //问题开始列
+        $question_start_index = Coordinate::columnIndexFromString($question_start_index);
+        //问题结束列
+        $question_end_index = Coordinate::columnIndexFromString($question_end_index);
+
+        //数据总行数
+        $total_rows = $worksheet->getHighestRow();
+        //数据总列数
+        $total_cols = Coordinate::columnIndexFromString($worksheet->getHighestColumn());
+
+        //第一遍主要先获取题目
+        for ($col = 1; $col <= $total_cols; $col++) {
+            //获取第一行表头
+            $value = $worksheet->getCellByColumnAndRow($col, 1)->getValue();
+
+            if ($col >= $question_start_index && $col <= $question_end_index) {
+                $question = [
+                    'type' => SurveyQuestion::QUESTION_TYPE_RADIO
+                ];
+
+                if ($question_order_regex) {
+                    $order = $this->extract($value, $question_order_regex);
+                } else {
+                    $order = $col - $question_start_index + 1;
+                }
+
+                if ($question_title_regex) {
+                    $title = $this->extract($value, $question_title_regex);
+                } else {
+                    $title = $value;
+                }
+
+                $question['sort_order'] = $order;
+                $question['title'] = $title;
+
+                $question_map[$col] = $question;
+            }
+
+            if (isset($answer_rules[$value])) {
+                $answer_map[$answer_rules[$value]] = $col;
+            }
         }
 
-        //根据规则生成题目
-        //TODO
+        //题目类型，只分为单选题、多选题以及填空题
+        for ($col = 1; $col <= $total_cols; $col++) {
+            if ($col >= $question_start_index && $col <= $question_end_index) {
+                $options = []; //该问题的选项
 
+                for ($row = 2; $row <= 101; $row++) {
+                    $value = $worksheet->getCellByColumnAndRow($col, $row)->getValue();
+
+                    //跳过占位符
+                    if (empty($value) || (isset($additional['skip_holder']) && $additional['skip_holder'] && $value == $additional['skip_holder'])) {
+                        continue;
+                    }
+
+                    //有选项分割符则为多选
+                    if (str_contains($value, $option_separator)) {
+                        $question_map[$col]['type'] = SurveyQuestion::QUESTION_TYPE_CHECKBOX;
+                        break;
+                    }
+
+                    //如果是可填选项，需要先清除已填内容再判断
+                    if ($option_fillable_start_regex && $option_fillable_end_regex && str_contains($value, $option_fillable_start_regex) && str_contains($value, $option_fillable_end_regex)) {
+                        $fill_value = $this->extract($value, "/($option_fillable_start_regex.*$option_fillable_end_regex)/");
+                        $value = str_replace($fill_value, '', $value);
+                    }
+
+                    //记录是否有过该选项记录
+                    if (!isset($options[$value])) {
+                        $options[$value] = 1;
+                    }
+
+                    //如果有超过20个不同的值的话就认为是填空题
+                    //理论上应该不会出现多选题前20题答案都没多选且答案均不相同的情况吧？
+                    if (count($options) > 20) {
+                        $question_map[$col]['type'] = SurveyQuestion::QUESTION_TYPE_INPUT;
+                        break;
+                    }
+                }
+            }
+        }
+
+        try {
+            $this->conn->beginTransaction();
+
+            $survey['show_type'] = $survey['show_type'] ?? Survey::SURVEY_SHOW_TYPE_SINGLE;
+            $survey['started_at'] = $survey['started_at'] ?? time();
+            $survey['ended_at'] = $survey['ended_at'] ?? time();
+            $survey['is_required'] = $survey['is_required'] ?? 0;
+            $survey['is_refillable'] = $survey['is_refillable'] ?? 0;
+            $survey['is_active'] = $survey['is_active'] ?? 0;
+
+
+            //保存问卷
+            list($survey, $error) = $this->saveSurvey($survey);
+
+            if ($error) {
+                return [null, $error];
+            }
+
+            //保存题目， 选项先不保存，而是后续根据题目类型再逐个保存
+            foreach ($question_map as $key => $question) {
+                $question['survey_id'] = $survey['id'];
+                $this->conn->insert($this->t_question, $question);
+                $question_map[$key]['id'] = $this->conn->lastInsertId();
+            }
+
+            $this->conn->commit();
+
+
+        } catch (\Exception $e) {
+            $this->conn->rollBack();
+            return [null, '保存问卷或题目失败'];
+        }
+
+
+        //开始处理答案
+        for ($row = 2; $row <= $total_rows; $row++) {
+
+            $user_id = isset($answer_map['user_id']) ? $worksheet->getCellByColumnAndRow($answer_map['user_id'], $row)->getValue() : 0;
+            $user_type = isset($answer_map['user_type']) ? $worksheet->getCellByColumnAndRow($answer_map['user_type'], $row)->getValue() : '';
+
+            for ($col = 1; $col <= $total_cols; $col++) {
+                if ($col >= $question_start_index && $col <= $question_end_index) {
+
+                    $value = $worksheet->getCellByColumnAndRow($col, $row)->getValue();
+
+                    if (empty($value) || (isset($additional['skip_holder']) && $additional['skip_holder'] && $value == $additional['skip_holder'])) {
+                        continue;
+                    }
+
+                    $question = &$question_map[$col];
+
+                    $answer = [
+                        'survey_id' => $survey['id'],
+                        'survey_question_id' => $question['id'],
+                        'user_id' => $user_id,
+                        'user_type' => $user_type,
+                        'created_at' => isset($answer_map['created_at']) ?
+                            date_create_from_format($additional['datetime_format'] ?? 'Y/m/d H:i', $worksheet->getCellByColumnAndRow($answer_map['created_at'], $row)->getValue())->getTimestamp() : time(),
+                        'ip' => isset($answer_map['ip']) ? $worksheet->getCellByColumnAndRow($answer_map['ip'], $row)->getValue() : '',
+                    ];
+
+                    if ($question['type'] === SurveyQuestion::QUESTION_TYPE_INPUT) {
+
+                        $answer['answer'] = $value;
+                        $answer['survey_option_id'] = 0;
+
+                        $this->conn->insert($this->t_answer, $answer);
+
+                    } else if ($question['type'] === SurveyQuestion::QUESTION_TYPE_RADIO) {
+
+                        $sort_order = null;
+
+                        if ($option_fillable_start_regex && $option_fillable_end_regex && str_contains($value, $option_fillable_start_regex) && str_contains($value, $option_fillable_end_regex)) {
+                            $fill_value = $this->extract($value, "/($option_fillable_start_regex.*$option_fillable_end_regex)/");
+                            $option_title = str_replace($fill_value, '', $value);
+                            $is_fillable = true;
+                            $fill_value = str_replace($option_fillable_start_regex, '', $fill_value);
+                            $fill_value = str_replace($option_fillable_end_regex, '', $fill_value);
+                            $answer['answer'] = $fill_value;
+                        } else {
+                            $option_title = $value;
+                            $is_fillable = false;
+                        }
+
+                        if($option_order_regex){
+                            $sort_order = $this->extract($option_title, "/($option_order_regex)/");
+                        }
+
+                        if($option_title_regex){
+                            $option_title = $this->extract($option_title, "/($option_title_regex)/");
+                        }
+
+
+                        if (!isset($question['options'][$option_title])) {
+                            //增加一个参数 $question['option_last_order'] 记录该问题产生的最后一个选项的排序
+                            if(empty($sort_order)){
+                                $option_last_order = ($question['option_last_order'] ?? 64) + 1;
+                                $sort_order = chr($option_last_order);
+                                $question['option_last_order'] = $option_last_order;
+                            }
+                            $this->conn->insert($this->t_option, [
+                                'survey_id' => $survey['id'],
+                                'survey_question_id' => $question['id'],
+                                'title' => $option_title,
+                                'sort_order' => $sort_order,
+                                'is_fillable' => $is_fillable,
+                            ]);
+                            $question['options'][$option_title] = $this->conn->lastInsertId();
+                        }
+                        $answer['survey_option_id'] = $question['options'][$option_title];
+
+                        $this->conn->insert($this->t_answer, $answer);
+                    } else {
+                        $options = explode($option_separator, $value);
+
+                        foreach ($options as $value) {
+                            //跟上面的单选的处理逻辑一样，感觉不想重复写了，但是又不想把这个逻辑抽出来，因为这个逻辑只有这里会用到
+                            $sort_order = null;
+
+                            if ($option_fillable_start_regex && $option_fillable_end_regex && str_contains($value, $option_fillable_start_regex) && str_contains($value, $option_fillable_end_regex)) {
+                                $fill_value = $this->extract($value, "/($option_fillable_start_regex.*$option_fillable_end_regex)/");
+                                $option_title = str_replace($fill_value, '', $value);
+                                $is_fillable = true;
+                                $fill_value = str_replace($option_fillable_start_regex, '', $fill_value);
+                                $fill_value = str_replace($option_fillable_end_regex, '', $fill_value);
+                                $answer['answer'] = $fill_value;
+                            } else {
+                                $option_title = $value;
+                                $is_fillable = false;
+                            }
+
+                            if($option_order_regex){
+                                $sort_order = $this->extract($option_title, "/($option_order_regex)/");
+                            }
+
+                            if($option_title_regex){
+                                $option_title = $this->extract($option_title, "/($option_title_regex)/");
+                            }
+
+
+                            if (!isset($question['options'][$option_title])) {
+                                //$question['option_last_order'] 记录该问题产生的最后一个选项的排序
+                                if(!isset($sort_order)){
+                                    $option_last_order = ($question['option_last_order'] ?? 64) + 1;
+                                    $sort_order = chr($option_last_order);
+                                    $question['option_last_order'] = $option_last_order;
+                                }
+                                $this->conn->insert($this->t_option, [
+                                    'survey_id' => $survey['id'],
+                                    'survey_question_id' => $question['id'],
+                                    'title' => $option_title,
+                                    'sort_order' => $sort_order,
+                                    'is_fillable' => $is_fillable,
+                                ]);
+                                $question['options'][$option_title] = $this->conn->lastInsertId();
+                            }
+
+                            $answer['survey_option_id'] = $question['options'][$option_title];
+                            $this->conn->insert($this->t_answer, $answer);
+                        }
+                    }
+                }
+            }
+
+            //记录该用户回答记录
+            $this->conn->insert($this->t_user, [
+                'survey_id' => $survey['id'],
+                'status' => Survey::SURVEY_USER_STATUS_DONE,
+                'user_id' => $user_id,
+                'user_type' => $user_type,
+            ]);
+        }
+
+        return [true, null];
     }
 
     /**
@@ -1369,4 +1624,15 @@ class SurveyService
 
     }
 
+
+    private function extract($str, $regex, $all = false)
+    {
+        preg_match($regex, $str, $matches);
+
+        if ($all) {
+            return $matches;
+        } else {
+            return $matches[1] ?? null;
+        }
+    }
 }

@@ -140,7 +140,7 @@ class SurveyTest extends TestCase
         list($result, $error) = $service->getSurvey($survey_id, true, true);
         $this->assertEquals($error, '问卷不存在', '获取问卷问题');
 
-        $survey_id = 15;
+        $survey_id = 4;
         list($result, $error) = $service->getSurvey($survey_id, true, true);
         $this->assertTrue(count($result) > 0, '获取问卷问题');
     }

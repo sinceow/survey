@@ -36,9 +36,9 @@ final class Version20221207 extends AbstractMigration
         $table_survey_question->addColumn('is_required', 'boolean', ['default' => 0])->setComment('是否必填');
         $table_survey_question->addColumn('is_end', 'boolean', ['default' => 0])->setComment('是否最后一题');
         $table_survey_question->addColumn('style', 'string', ['length' => 10, 'notnull' => false])->setComment('样式');
-        $table_survey_question->addColumn('min', 'integer', ['default' => 0])->setComment('最小值');
-        $table_survey_question->addColumn('max', 'integer', ['default' => 0])->setComment('最大值');
-        $table_survey_question->addColumn('sort_order', 'integer', ['default' => 0])->setComment('排序');
+        $table_survey_question->addColumn('min', 'integer', ['default' => 0, 'notnull' => false])->setComment('最小值');
+        $table_survey_question->addColumn('max', 'integer', ['default' => 0, 'notnull' => false])->setComment('最大值');
+        $table_survey_question->addColumn('sort_order', 'string', ['notnull' => false, 'length' => 191])->setComment('排序');
         $table_survey_question->addColumn('chapter', 'string', ['length' => 191, 'notnull' => false])->setComment('章节');
         $table_survey_question->setPrimaryKey(['id']);
         $table_survey_question->addIndex(['survey_id']);
@@ -48,7 +48,7 @@ final class Version20221207 extends AbstractMigration
         $table_survey_option->addColumn('survey_id', 'integer', ['notnull' => false])->setComment('问卷ID');
         $table_survey_option->addColumn('survey_question_id', 'integer', ['notnull' => false])->setComment('题目ID');
         $table_survey_option->addColumn('title', 'string', ['length' => 191])->setComment('选项');
-        $table_survey_option->addColumn('sort_order', 'integer', ['default' => 0])->setComment('排序');
+        $table_survey_option->addColumn('sort_order', 'string', ['notnull' => false, 'length' => 191])->setComment('排序');
         $table_survey_option->addColumn('is_fillable', 'boolean', ['default' => 0])->setComment('是否可编辑');
         $table_survey_option->addColumn('jump_to_question_order', 'integer', ['notnull' => false])->setComment('跳转到题目序号');
         $table_survey_option->addColumn('hide_question_ids', 'string', ['length' => 250, 'notnull' => false])->setComment('隐藏题目');
@@ -60,8 +60,8 @@ final class Version20221207 extends AbstractMigration
         $table_survey_answer->addColumn('survey_id', 'integer', ['notnull' => false])->setComment('问卷ID');
         $table_survey_answer->addColumn('survey_question_id', 'integer', ['notnull' => false])->setComment('题目ID');
         $table_survey_answer->addColumn('survey_option_id', 'integer', ['notnull' => false])->setComment('选项ID');
-        $table_survey_answer->addColumn('user_id', 'integer', ['notnull' => false])->setComment('用户ID');
-        $table_survey_answer->addColumn('user_type', 'string', ['notnull' => false])->setComment('用户类型');
+        $table_survey_answer->addColumn('user_id', 'string', ['notnull' => false, 'length' => 191])->setComment('用户ID');
+        $table_survey_answer->addColumn('user_type', 'string', ['notnull' => false, 'length' => 191])->setComment('用户类型');
         $table_survey_answer->addColumn('answer', 'string', ['length' => 250, 'notnull' => false])->setComment('答案');
         $table_survey_answer->addColumn('created_at', 'integer', ['notnull' => false])->setComment('创建时间');
         $table_survey_answer->addColumn('ip', 'string', ['length' => 20, 'notnull' => false])->setComment('IP');
@@ -71,9 +71,9 @@ final class Version20221207 extends AbstractMigration
         $table_survey_user = $schema->createTable('survey_users');
         $table_survey_user->addColumn('id', 'integer', ['autoincrement' => true])->setComment('ID');
         $table_survey_user->addColumn('survey_id', 'integer', ['notnull' => false])->setComment('问卷ID');
-        $table_survey_user->addColumn('user_id', 'integer', ['notnull' => false])->setComment('用户ID');
-        $table_survey_user->addColumn('last_question_id', 'integer', ['notnull' => false])->setComment('用户ID');
-        $table_survey_user->addColumn('user_type', 'string', ['notnull' => false])->setComment('用户类型');
+        $table_survey_user->addColumn('user_id', 'string', ['notnull' => false, 'length' => 191])->setComment('用户ID');
+        $table_survey_user->addColumn('user_type', 'string', ['notnull' => false, 'length' => 191])->setComment('用户类型');
+        $table_survey_user->addColumn('last_question_id', 'integer', ['notnull' => false])->setComment('最后一题ID');
         $table_survey_user->addColumn('status', 'smallint', ['notnull' => false])->setComment('填写状态: 未填写，填写中，已完成');
         $table_survey_user->addColumn('created_at', 'integer', ['notnull' => false])->setComment('创建时间');
         $table_survey_user->addColumn('updated_at', 'integer', ['notnull' => false])->setComment('更新时间');

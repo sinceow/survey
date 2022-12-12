@@ -12,6 +12,11 @@ class Db
 
     public static function getConnection($db_params): Connection
     {
+
+        if (!isset($db_params) || !count($db_params)) {
+            $config = include_once __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'config.php';
+            $db_params = $config['database'];
+        }
         if (!self::$connection) {
             self::$connection = DriverManager::getConnection([
                 'dbname' => $db_params['dbname'],
