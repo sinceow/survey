@@ -64,7 +64,7 @@ final class Version20221207 extends AbstractMigration
         $table_survey_answer->addColumn('user_type', 'string', ['notnull' => false, 'length' => 191])->setComment('用户类型');
         $table_survey_answer->addColumn('answer', 'string', ['length' => 250, 'notnull' => false])->setComment('答案');
         $table_survey_answer->addColumn('created_at', 'integer', ['notnull' => false])->setComment('创建时间');
-        $table_survey_answer->addColumn('ip', 'string', ['length' => 20, 'notnull' => false])->setComment('IP');
+        $table_survey_answer->addColumn('ip', 'string', ['length' => 100, 'notnull' => false])->setComment('IP');
         $table_survey_answer->setPrimaryKey(['id']);
         $table_survey_answer->addIndex(['survey_id', 'survey_question_id', 'survey_option_id', 'user_id', 'user_type']);
 
