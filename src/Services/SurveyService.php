@@ -1267,13 +1267,13 @@ class SurveyService
                         if ($option_fillable_start_regex && $option_fillable_end_regex && str_contains($value, $option_fillable_start_regex) && str_contains($value, $option_fillable_end_regex)) {
                             $fill_value = $this->extract($value, "/($option_fillable_start_regex.*$option_fillable_end_regex)/");
                             $option_title = str_replace($fill_value, '', $value);
-                            $is_fillable = true;
+                            $is_fillable = 1;
                             $fill_value = str_replace($option_fillable_start_regex, '', $fill_value);
                             $fill_value = str_replace($option_fillable_end_regex, '', $fill_value);
                             $answer['answer'] = $fill_value;
                         } else {
                             $option_title = $value;
-                            $is_fillable = false;
+                            $is_fillable = 0;
                         }
 
                         if ($option_order_regex) {
@@ -1314,13 +1314,13 @@ class SurveyService
                             if ($option_fillable_start_regex && $option_fillable_end_regex && str_contains($value, $option_fillable_start_regex) && str_contains($value, $option_fillable_end_regex)) {
                                 $fill_value = $this->extract($value, "/($option_fillable_start_regex.*$option_fillable_end_regex)/");
                                 $option_title = str_replace($fill_value, '', $value);
-                                $is_fillable = true;
+                                $is_fillable = 1;
                                 $fill_value = str_replace($option_fillable_start_regex, '', $fill_value);
                                 $fill_value = str_replace($option_fillable_end_regex, '', $fill_value);
                                 $answer['answer'] = $fill_value;
                             } else {
                                 $option_title = $value;
-                                $is_fillable = false;
+                                $is_fillable = 0;
                             }
 
                             if ($option_order_regex) {
