@@ -1222,7 +1222,7 @@ class SurveyService
 
         } catch (\Exception $e) {
             $this->conn->rollBack();
-            return [null, '保存问卷或题目失败'];
+            return [null, '保存问卷或题目失败: ' . $e->getMessage()];
         }
 
 
@@ -1276,18 +1276,18 @@ class SurveyService
                             $is_fillable = false;
                         }
 
-                        if($option_order_regex){
+                        if ($option_order_regex) {
                             $sort_order = $this->extract($option_title, "/($option_order_regex)/");
                         }
 
-                        if($option_title_regex){
+                        if ($option_title_regex) {
                             $option_title = $this->extract($option_title, "/($option_title_regex)/");
                         }
 
 
                         if (!isset($question['options'][$option_title])) {
                             //增加一个参数 $question['option_last_order'] 记录该问题产生的最后一个选项的排序
-                            if(empty($sort_order)){
+                            if (empty($sort_order)) {
                                 $option_last_order = ($question['option_last_order'] ?? 64) + 1;
                                 $sort_order = chr($option_last_order);
                                 $question['option_last_order'] = $option_last_order;
@@ -1323,18 +1323,18 @@ class SurveyService
                                 $is_fillable = false;
                             }
 
-                            if($option_order_regex){
+                            if ($option_order_regex) {
                                 $sort_order = $this->extract($option_title, "/($option_order_regex)/");
                             }
 
-                            if($option_title_regex){
+                            if ($option_title_regex) {
                                 $option_title = $this->extract($option_title, "/($option_title_regex)/");
                             }
 
 
                             if (!isset($question['options'][$option_title])) {
                                 //$question['option_last_order'] 记录该问题产生的最后一个选项的排序
-                                if(!isset($sort_order)){
+                                if (!isset($sort_order)) {
                                     $option_last_order = ($question['option_last_order'] ?? 64) + 1;
                                     $sort_order = chr($option_last_order);
                                     $question['option_last_order'] = $option_last_order;
